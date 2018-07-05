@@ -67,11 +67,9 @@ defmodule Siftsciex.DecisionPlug do
   end
 
   defp process(conn, opts) do
-    {:ok, payload, conn} = read_body(conn)
-
     opts
     |> Map.get(path(conn))
-    |> handle(payload, conn)
+    |> handle(conn.body_params(), conn)
   end
 
   defp path(conn), do: Enum.join(conn.path_info(), "/")
@@ -88,8 +86,6 @@ defmodule Siftsciex.DecisionPlug do
   end
 
   defp decision(body) do
-    {:ok, payload} = Poison.decode(body)
-
-    Decision.new(payload)
+    Decision.new(body)
   end
 end
