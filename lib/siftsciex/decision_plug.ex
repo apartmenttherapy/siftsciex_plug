@@ -20,11 +20,9 @@ defmodule Siftsciex.DecisionPlug do
   ### Example
 
   ```
-  defmodule SiftHookRouter do
-    use Plug.Router
-
-    plug Siftsciex.DecisionPlug, %{"bad_listing", {ListingHandler, :process}}
-  end
+    forward "/sift_science", Siftsciex.DecisionPlug, %{
+      "bad_listing" => {ListingHandler, :process}}
+    }
   ```
   """
 
