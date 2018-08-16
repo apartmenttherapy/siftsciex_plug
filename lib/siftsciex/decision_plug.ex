@@ -77,6 +77,12 @@ defmodule Siftsciex.DecisionPlug do
     |> send_resp(404, "No such Hook")
     |> halt()
   end
+  defp handle(handler, %Plug.Conn.Unfetched{aspect: :body_params}, conn) do
+    {:ok, payload, conn} = Conn.read_body(conn)
+    {:ok, payload} = Poison.decode(payload)
+
+    handle(handler, payload, conn)
+  end
   defp handle({mod, fun}, payload, conn) do
     Kernel.apply(mod, fun, [decision(payload)])
 
