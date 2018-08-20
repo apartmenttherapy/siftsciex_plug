@@ -9,7 +9,7 @@ defmodule Siftsciex.DecisionPlugTest do
     result =
       "test"
       |> req(decision())
-      |> put_req_header("x-sift-science-signature", "test")
+      |> put_req_header("x-sift-science-signature", sha_sig())
       |> DecisionPlug.call(%{"test" => {TestHandler, :run}})
 
     assert result.status() == 200
@@ -28,7 +28,7 @@ defmodule Siftsciex.DecisionPlugTest do
     result =
       "test"
       |> req(decision())
-      |> put_req_header("x-sift-science-signature", "test")
+      |> put_req_header("x-sift-science-signature", sha_sig())
       |> DecisionPlug.call(%{"test" => {TestHandler, :run}})
 
     assert result.status() == 200
@@ -38,7 +38,7 @@ defmodule Siftsciex.DecisionPlugTest do
     result =
       "random"
       |> req(decision())
-      |> put_req_header("x-sift-science-signature", "test")
+      |> put_req_header("x-sift-science-signature", sha_sig())
       |> DecisionPlug.call(%{"test" => {TestHandler, :run}})
 
     assert result.status() == 404
@@ -48,6 +48,10 @@ defmodule Siftsciex.DecisionPlugTest do
     :post
     |> conn(path, body)
     |> put_req_header("content-type", "application/json")
+  end
+
+  def sha_sig do
+    "sha1=#{:crypto.hmac(:sha, "test", decision()) |> Base.encode16() |> String.downcase()}"
   end
 
   def decision do
