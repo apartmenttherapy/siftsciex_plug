@@ -2,6 +2,8 @@ defmodule Siftsciex.DecisionPlugTest do
   use ExUnit.Case, async: true
   use Plug.Test
 
+  import Siftsciex.Plug.Data
+
   alias Siftsciex.DecisionPlug
   alias Siftsciex.Plug.TestHandler
 
@@ -9,7 +11,7 @@ defmodule Siftsciex.DecisionPlugTest do
     result =
       "test"
       |> req(decision())
-      |> put_req_header("x-sift-science-signature", sha_sig())
+      |> put_req_header("x-sift-science-signature", signature())
       |> DecisionPlug.call(%{"test" => {TestHandler, :run}})
 
     assert result.status() == 200
@@ -28,7 +30,7 @@ defmodule Siftsciex.DecisionPlugTest do
     result =
       "test"
       |> req(decision())
-      |> put_req_header("x-sift-science-signature", sha_sig())
+      |> put_req_header("x-sift-science-signature", signature())
       |> DecisionPlug.call(%{"test" => {TestHandler, :run}})
 
     assert result.status() == 200
@@ -38,7 +40,7 @@ defmodule Siftsciex.DecisionPlugTest do
     result =
       "random"
       |> req(decision())
-      |> put_req_header("x-sift-science-signature", sha_sig())
+      |> put_req_header("x-sift-science-signature", signature())
       |> DecisionPlug.call(%{"test" => {TestHandler, :run}})
 
     assert result.status() == 404
@@ -48,24 +50,5 @@ defmodule Siftsciex.DecisionPlugTest do
     :post
     |> conn(path, body)
     |> put_req_header("content-type", "application/json")
-  end
-
-  def sha_sig do
-    "sha1=#{:crypto.hmac(:sha, "test", decision()) |> Base.encode16() |> String.downcase()}"
-  end
-
-  def decision do
-    """
-    {
-      "entity": {
-        "type": "user",
-        "id": "USER123"
-      },
-      "decision": {
-        "id": "block_user_payment_abuse"
-      },
-      "time": 1530633228
-    }
-    """
   end
 end
