@@ -28,11 +28,12 @@ defmodule Siftsciex.DecisionPlug do
 
   import Plug.Conn
 
+  require Logger
+
   alias Plug.Conn
-  alias Siftsciex.Decision
+  alias Siftsciex.{Decision, HookValidator}
 
   @type opts :: %{required(String.t) => {module, atom}}
-  @auth_header "x-sift-science-signature"
 
   @spec init(opts) :: map
   def init(opts) do
@@ -41,34 +42,50 @@ defmodule Siftsciex.DecisionPlug do
 
   @spec call(Conn.t, map) :: Conn.t
   def call(conn, opts) do
+    process(conn, opts)
+  end
+
+  @spec process(Plug.Conn.t, map) :: Plug.Conn.t
+  def process(conn, opts) do
+    case conn.body_params() do
+      %Plug.Conn.Unfetched{} ->
+        {:ok, body, conn} = HookValidator.validate(conn, [])
+        case valid?(conn) do
+          true ->
+            {:ok, body} = Poison.decode(body)
+            opts
+            |> Map.get(path(conn))
+            |> handle(body, conn)
+          false ->
+            Logger.error("Invalid signature on Hook")
+            forbid(conn)
+        end
+      body ->
+        case valid?(conn) do
+          true ->
+            opts
+            |> Map.get(path(conn))
+            |> handle(body, conn)
+          false ->
+            Logger.error("Invalid signature on Hook")
+            forbid(conn)
+        end
+    end
+  end
+
+  @spec valid?(Plug.Conn.t) :: boolean
+  def valid?(conn) do
+    !!conn.assigns()[:siftsciex_sig] && true
+  end
+
+  defp forbid(conn) do
     conn
-    |> valid?()
-    |> case do
-         true ->
-           process(conn, opts)
-         false ->
-           conn
-           |> send_resp(403, "Nope")
-           |> halt()
-       end
+    |> send_resp(403, "Nope")
+    |> halt()
   end
 
-  defp valid?(conn) do
-    headers = conn.req_headers()
-
-    headers
-    |> Enum.find_value(fn
-         {@auth_header, value} -> value
-         {_header, _value} -> false
-       end)
-    |> Kernel.==(Application.get_env(:siftsciex_plug, :hook_key))
-  end
-
-  defp process(conn, opts) do
-    opts
-    |> Map.get(path(conn))
-    |> handle(conn.body_params(), conn)
-  end
+  @spec sig_key() :: String.t
+  def sig_key, do: Application.get_env(:siftsciex_plug, :hook_key)
 
   defp path(conn), do: Enum.join(conn.path_info(), "/")
 
@@ -76,12 +93,6 @@ defmodule Siftsciex.DecisionPlug do
     conn
     |> send_resp(404, "No such Hook")
     |> halt()
-  end
-  defp handle(handler, %Plug.Conn.Unfetched{aspect: :body_params}, conn) do
-    {:ok, payload, conn} = Conn.read_body(conn)
-    {:ok, payload} = Poison.decode(payload)
-
-    handle(handler, payload, conn)
   end
   defp handle({mod, fun}, payload, conn) do
     Kernel.apply(mod, fun, [decision(payload)])
