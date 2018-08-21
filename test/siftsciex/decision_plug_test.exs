@@ -26,6 +26,16 @@ defmodule Siftsciex.DecisionPlugTest do
     assert result.status() == 403
   end
 
+  test "If the request has an invalid signature then it returns a 403 response" do
+    result =
+      "test"
+      |> req(decision())
+      |> put_req_header("x-sift-science-signature", "bogus")
+      |> DecisionPlug.call(%{"test" => {TestHandler, :run}})
+
+    assert result.status() == 403
+  end
+
   test "If the request is to a known path it is processed" do
     result =
       "test"

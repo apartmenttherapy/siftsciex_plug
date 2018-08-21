@@ -24,6 +24,10 @@ defmodule Siftsciex.DecisionPlug do
       "bad_listing" => {ListingHandler, :process}}
     }
   ```
+
+  ### Notes
+
+  Currently this Plug assumes that a Plug.Parser is being used upstream in conjunction with the `Siftsciex.HookValidator` to check incomming requests for a valid signature.
   """
 
   import Plug.Conn
@@ -31,10 +35,9 @@ defmodule Siftsciex.DecisionPlug do
   require Logger
 
   alias Plug.Conn
-  alias Siftsciex.{Decision, HookSig}
+  alias Siftsciex.{Decision, HookValidator}
 
   @type opts :: %{required(String.t) => {module, atom}}
-  @auth_header "x-sift-science-signature"
 
   @spec init(opts) :: map
   def init(opts) do
@@ -48,33 +51,35 @@ defmodule Siftsciex.DecisionPlug do
 
   @spec process(Plug.Conn.t, map) :: Plug.Conn.t
   def process(conn, opts) do
-    conn.req_headers()
-    |> signature()
-    |> execute(conn, opts)
-  end
-
-  defp execute({:ok, signature}, conn, opts) do
-    {:ok, body, conn} = Conn.read_body(conn)
-
-    case HookSig.valid?(signature, {sig_key(), body}) do
-      true ->
-        {:ok, parsed_body} = Poison.decode(body)
-        opts
-        |> Map.get(path(conn))
-        |> handle(parsed_body, conn)
-      false ->
-        forbid(conn)
+    case conn.body_params() do
+      %Plug.Conn.Unfetched{} ->
+        {:ok, body, conn} = HookValidator.validate(conn, [])
+        case valid?(conn) do
+          true ->
+            {:ok, body} = Poison.decode(body)
+            opts
+            |> Map.get(path(conn))
+            |> handle(body, conn)
+          false ->
+            Logger.error("Invalid signature on Hook")
+            forbid(conn)
+        end
+      body ->
+        case valid?(conn) do
+          true ->
+            opts
+            |> Map.get(path(conn))
+            |> handle(body, conn)
+          false ->
+            Logger.error("Invalid signature on Hook")
+            forbid(conn)
+        end
     end
   end
-  defp execute({:error, "unknown_alg", signature}, conn, _opts) do
-    Logger.error("Received a Hook with an unknown algorithm: #{signature}")
 
-    forbid(conn)
-  end
-  defp execute(nil, conn, _opts) do
-    Logger.error("Received a Hook with no signature")
-
-    forbid(conn)
+  @spec valid?(Plug.Conn.t) :: boolean
+  def valid?(conn) do
+    !!conn.assigns()[:siftsciex_sig] && true
   end
 
   defp forbid(conn) do
@@ -83,16 +88,8 @@ defmodule Siftsciex.DecisionPlug do
     |> halt()
   end
 
+  @spec sig_key() :: String.t
   def sig_key, do: Application.get_env(:siftsciex_plug, :hook_key)
-
-  @spec signature(Keyword.t) :: {:ok, HookSig.t} | {:error, String.t, String.t} | nil
-  defp signature(headers) do
-    headers
-    |> Enum.find_value(fn
-      {@auth_header, value} -> HookSig.from(value)
-      {_header, _value} -> nil
-    end)
-  end
 
   defp path(conn), do: Enum.join(conn.path_info(), "/")
 
