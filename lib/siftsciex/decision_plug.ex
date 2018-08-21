@@ -24,10 +24,6 @@ defmodule Siftsciex.DecisionPlug do
       "bad_listing" => {ListingHandler, :process}}
     }
   ```
-
-  ### Notes
-
-  Currently this Plug assumes that a Plug.Parser is being used upstream in conjunction with the `Siftsciex.HookValidator` to check incomming requests for a valid signature.
   """
 
   import Plug.Conn

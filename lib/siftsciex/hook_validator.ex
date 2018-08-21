@@ -1,6 +1,16 @@
 defmodule Siftsciex.HookValidator do
   @moduledoc """
   The SigPlug is responsible for checking for a Sift Science signature header and if present verifying that the body is valid.
+
+  If you are using `Plug.Parsers` then you should add this module to the opts for `:body_reader`.  This will ensure that the signature can be calculated on the raw body before the Parser consumes it.
+
+  ```
+  plug Plug.Parsers,
+    parsers: [:urlencoded, :multipart, :json],
+    pass: ["*/*"],
+    body_reader: {Siftsciex.HookValidator, :validate, []},
+    json_decoder: Poison
+  ```
   """
 
   import Plug.Conn
